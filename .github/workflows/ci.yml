@@ -18,11 +18,8 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     - name: Compilar Backend Ventas con Maven
-      run: |
-        POM_PATH=$(find back-Ventas_SpringBoot -name "pom.xml" -print -quit)
-        DIR_PATH=$(dirname "$POM_PATH")
-        cd "$DIR_PATH"
-        mvn clean package -DskipTests
+      working-directory: ./back-Ventas_SpringBoot/Springboot-API-REST
+      run: mvn clean package -DskipTests
 
   # ? Pipeline para Backend Despachos
   build-back-despachos:
@@ -35,11 +32,8 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     - name: Compilar Backend Despachos con Maven
-      run: |
-        POM_PATH=$(find back-Despachos_SpringBoot -name "pom.xml" -print -quit)
-        DIR_PATH=$(dirname "$POM_PATH")
-        cd "$DIR_PATH"
-        mvn clean package -DskipTests
+      working-directory: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+      run: mvn clean package -DskipTests
 
   # ?? Pipeline para el Frontend
   build-frontend:
@@ -51,7 +45,7 @@ jobs:
       with:
         node-version: 18
     - name: Instalar Dependencias y Validar Construccion
+      working-directory: ./front_despacho
       run: |
-        cd front_despacho
         npm install
         npm run build --if-present
