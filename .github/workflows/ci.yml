@@ -1,0 +1,57 @@
+name: Pipeline de Integracion Continua (CI)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # ? Pipeline para Backend Ventas
+  build-back-ventas:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    - name: Compilar Backend Ventas con Maven
+      run: |
+        cd back-Ventas_SpringBoot
+        mvn clean package -DskipTests
+
+  # ? Pipeline para Backend Despachos
+  build-back-despachos:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    - name: Compilar Backend Despachos con Maven
+      run: |
+        cd back-Despachos_SpringBoot
+        mvn clean package -DskipTests
+
+  # ?? Pipeline para el Frontend
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'npm'
+        cache-dependency-path: front_despacho/package-lock.json
+    - name: Instalar Dependencias y Validar Construccion
+      run: |
+        cd front_despacho
+        npm install
+        npm run build --if-present
