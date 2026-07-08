@@ -1,4 +1,3 @@
-# 1. Configuración del Proveedor AWS
 terraform {
   required_providers {
     aws = {
@@ -8,24 +7,55 @@ terraform {
   }
 }
 
+# Configuración del proveedor compatible con AWS Academy
 provider "aws" {
-  region = "us-east-1" # Región estándar para laboratorios académincos
+  region = "us-east-1"
 }
 
-# 2. Grupo de Seguridad (Firewall) para permitir tráfico
-resource "aws_security_group" "sg_proyecto" {
-  name        = "sg_proyecto_semestral"
-  description = "Permitir trafico para SpringBoot y Frontend"
+# 1. Red Aislada Exigida por la Pauta (VPC)
+resource "aws_vpc" "vpc_produccion" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  tags = { Name = "vpc-sistema-produccion" }
+}
 
-  # Puerto para SSH (Administración)
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+# 2. Subred Pública donde apuntará el tráfico de Internet
+resource "aws_subnet" "subred_publica" {
+  vpc_id                  = aws_vpc.vpc_produccion.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true
+  availability_zone       = "us-east-1a"
+  tags = { Name = "subred-publica-proyecto" }
+}
+
+# 3. Internet Gateway para conectar la VPC a Internet
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.vpc_produccion.id
+  tags   = { Name = "igw-proyecto" }
+}
+
+# 4. Tabla de ruteo para habilitar la salida pública
+resource "aws_route_table" "rt_publica" {
+  vpc_id = aws_vpc.vpc_produccion.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
   }
+  tags = { Name = "rt-publica-proyecto" }
+}
 
-  # Puerto para el Frontend (Angular/React)
+resource "aws_route_table_association" "rta_publica" {
+  subnet_id      = aws_subnet.subred_publica.id
+  route_table_id = aws_route_table.rt_publica.id
+}
+
+# 5. Grupo de Seguridad con Reglas Restrictivas (Seguridad Básica / Hardening)
+resource "aws_security_group" "sg_seguro" {
+  name        = "sg-reglas-restrictivas"
+  description = "Permitir solo puertos minimos requeridos"
+  vpc_id      = aws_vpc.vpc_produccion.id
+
+  # Entrada Puerto 80 para el Frontend
   ingress {
     from_port   = 80
     to_port     = 80
@@ -33,7 +63,7 @@ resource "aws_security_group" "sg_proyecto" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Puerto para Backend Ventas
+  # Entrada Puertos para los Backends
   ingress {
     from_port   = 8081
     to_port     = 8081
@@ -41,7 +71,6 @@ resource "aws_security_group" "sg_proyecto" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Puerto para Backend Despachos
   ingress {
     from_port   = 8082
     to_port     = 8082
@@ -49,7 +78,7 @@ resource "aws_security_group" "sg_proyecto" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Salida libre a internet
+  # Salida libre a Internet
   egress {
     from_port   = 0
     to_port     = 0
@@ -58,15 +87,24 @@ resource "aws_security_group" "sg_proyecto" {
   }
 }
 
-# 3. Instancia EC2 (Servidor Virtual) donde correrá Docker / App
-resource "aws_instance" "servidor_proyecto" {
+# 6. Instancia EC2 donde correrá Docker orquestado en producción
+resource "aws_instance" "servidor_produccion" {
   ami           = "ami-0c7217cdde317cfec" # Ubuntu Server 22.04 LTS en us-east-1
-  instance_type = "t2.micro"             # Capa gratuita
+  instance_type = "t2.micro"             # Capa gratuita admitida por el laboratorio
+  subnet_id     = aws_subnet.subred_publica.id
+  vpc_security_group_ids = [aws_security_group.sg_seguro.id]
 
-  vpc_security_group_ids = [aws_security_group.sg_proyecto.id]
+  # Inyección automatizada de Docker para encender el docker-compose al iniciar
+  user_data = <<-EOF
+              #!/bin/bash
+              apt-get update
+              apt-get install -y docker.io docker-compose
+              systemctl start docker
+              systemctl enable docker
+              EOF
 
   tags = {
-    Name = "Servidor-Proyecto-Semestral"
-    Env  = "DevOps"
+    Name = "Servidor-Produccion-EFT"
+    Env  = "Produccion"
   }
 }
