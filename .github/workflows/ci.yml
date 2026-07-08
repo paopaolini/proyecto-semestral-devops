@@ -17,7 +17,6 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: maven
     - name: Compilar Backend Ventas con Maven
       run: |
         cd back-Ventas_SpringBoot
@@ -33,7 +32,6 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: maven
     - name: Compilar Backend Despachos con Maven
       run: |
         cd back-Despachos_SpringBoot
@@ -48,8 +46,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 18
-        cache: 'npm'
-        cache-dependency-path: front_despacho/package-lock.json
     - name: Instalar Dependencias y Validar Construccion
       run: |
         cd front_despacho
