@@ -19,7 +19,7 @@ jobs:
         distribution: 'temurin'
     - name: Compilar Backend Ventas con Maven
       run: |
-        cd back-Ventas_SpringBoot/Springboot-API-REST
+        cd back-Ventas_SpringBoot/Springboot-*
         mvn clean package -DskipTests
 
   # ? Pipeline para Backend Despachos
@@ -34,7 +34,7 @@ jobs:
         distribution: 'temurin'
     - name: Compilar Backend Despachos con Maven
       run: |
-        cd back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+        cd back-Despachos_SpringBoot/Springboot-*
         mvn clean package -DskipTests
 
   # ?? Pipeline para el Frontend
