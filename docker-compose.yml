@@ -1,72 +1,66 @@
 version: '3.8'
 
 services:
-  # Base de Datos Relacional (Requisito Obligatorio de la Pauta)
-  postgres-db:
+  # ??? Motor de Base de Datos Relacional (PostgreSQL)
+  postgres_db:
     image: postgres:15-alpine
-    container_name: postgres-db
+    container_name: db_proyecto_relacional
     environment:
-      POSTGRES_USER: user_devops
-      POSTGRES_PASSWORD: password_seguro_123
-      POSTGRES_DB: bd_proyectos
+      POSTGRES_DB: bd_sistema
+      POSTGRES_USER: usuario_devops
+      POSTGRES_PASSWORD: password_seguro
     ports:
       - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
     networks:
-      - red-interna-devops
+      - red-local-devops
+    volumes:
+      - datos_postgres_persistentes:/var/lib/postgresql/data
 
-  # Backend 1: Ventas
+  # ? Microservicio: Backend de Ventas (Spring Boot)
   back-ventas:
-    build:
-      context: ./back-Ventas_SpringBoot
-      dockerfile: Dockerfile
-    container_name: back-ventas
+    build: ./back-Ventas_SpringBoot/Springboot-API-REST
+    container_name: back_ventas_container
     ports:
       - "8081:8081"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/bd_proyectos
-      - SPRING_DATASOURCE_USERNAME=user_devops
-      - SPRING_DATASOURCE_PASSWORD=password_seguro_123
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres_db:5432/bd_sistema
+      - SPRING_DATASOURCE_USERNAME=usuario_devops
+      - SPRING_DATASOURCE_PASSWORD=password_seguro
     depends_on:
-      - postgres-db
+      - postgres_db
     networks:
-      - red-interna-devops
+      - red-local-devops
 
-  # Backend 2: Despachos
+  # ? Microservicio: Backend de Despachos (Spring Boot)
   back-despachos:
-    build:
-      context: ./back-Despachos_SpringBoot
-      dockerfile: Dockerfile
-    container_name: back-despachos
+    build: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+    container_name: back_despachos_container
     ports:
       - "8082:8082"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/bd_proyectos
-      - SPRING_DATASOURCE_USERNAME=user_devops
-      - SPRING_DATASOURCE_PASSWORD=password_seguro_123
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres_db:5432/bd_sistema
+      - SPRING_DATASOURCE_USERNAME=usuario_devops
+      - SPRING_DATASOURCE_PASSWORD=password_seguro
     depends_on:
-      - postgres-db
+      - postgres_db
     networks:
-      - red-interna-devops
+      - red-local-devops
 
-  # Frontend: Interfaz Web
-  front-despacho:
-    build:
-      context: ./front_despacho
-      dockerfile: Dockerfile
-    container_name: front-despacho
+  # ?? Componente de Presentación: Frontend Web
+  frontend-app:
+    build: ./front_despacho
+    container_name: front_despacho_container
     ports:
       - "80:80"
     depends_on:
       - back-ventas
       - back-despachos
     networks:
-      - red-interna-devops
-
-volumes:
-  db_data:
+      - red-local-devops
 
 networks:
-  red-interna-devops:
+  red-local-devops:
     driver: bridge
+
+volumes:
+  datos_postgres_persistentes:

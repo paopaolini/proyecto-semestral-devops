@@ -7,78 +7,55 @@ terraform {
   }
 }
 
-# Configuración del proveedor compatible con AWS Academy
 provider "aws" {
   region = "us-east-1"
 }
 
-# 1. Red Aislada Exigida por la Pauta (VPC)
-resource "aws_vpc" "vpc_produccion" {
+# --- FASE 1: REDES CORPORATIVAS AISLADAS (VPC) ---
+resource "aws_vpc" "vpc_principal" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
-  tags = { Name = "vpc-sistema-produccion" }
+  tags = { Name = "vpc-sistema-omnichannel" }
 }
 
-# 2. Subred Pública donde apuntará el tráfico de Internet
-resource "aws_subnet" "subred_publica" {
-  vpc_id                  = aws_vpc.vpc_produccion.id
-  cidr_block              = "10.0.1.0/24"
+resource "aws_subnet" "subnet_publica_a" {
+  vpc_id            = aws_vpc.vpc_principal.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "us-east-1a"
   map_public_ip_on_launch = true
-  availability_zone       = "us-east-1a"
-  tags = { Name = "subred-publica-proyecto" }
+  tags = { Name = "subnet-publica-devops-a" }
 }
 
-# 3. Internet Gateway para conectar la VPC a Internet
 resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.vpc_produccion.id
-  tags   = { Name = "igw-proyecto" }
+  vpc_id = aws_vpc.vpc_principal.id
+  tags   = { Name = "igw-sistema" }
 }
 
-# 4. Tabla de ruteo para habilitar la salida pública
 resource "aws_route_table" "rt_publica" {
-  vpc_id = aws_vpc.vpc_produccion.id
+  vpc_id = aws_vpc.vpc_principal.id
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id
   }
-  tags = { Name = "rt-publica-proyecto" }
 }
 
-resource "aws_route_table_association" "rta_publica" {
-  subnet_id      = aws_subnet.subred_publica.id
+resource "aws_route_table_association" "a" {
+  subnet_id      = aws_subnet.subnet_publica_a.id
   route_table_id = aws_route_table.rt_publica.id
 }
 
-# 5. Grupo de Seguridad con Reglas Restrictivas (Seguridad Básica / Hardening)
-resource "aws_security_group" "sg_seguro" {
-  name        = "sg-reglas-restrictivas"
-  description = "Permitir solo puertos minimos requeridos"
-  vpc_id      = aws_vpc.vpc_produccion.id
+# --- FASE 2: SEGURIDAD PERIMETRAL RESTRICTIVA (HARDENING) ---
+resource "aws_security_group" "sg_frontend" {
+  name        = "sg_modulo_frontend"
+  description = "Permite acceso web HTTP publico"
+  vpc_id      = aws_vpc.vpc_principal.id
 
-  # Entrada Puerto 80 para el Frontend
   ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  # Entrada Puertos para los Backends
-  ingress {
-    from_port   = 8081
-    to_port     = 8081
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 8082
-    to_port     = 8082
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Salida libre a Internet
   egress {
     from_port   = 0
     to_port     = 0
@@ -87,24 +64,45 @@ resource "aws_security_group" "sg_seguro" {
   }
 }
 
-# 6. Instancia EC2 donde correrá Docker orquestado en producción
-resource "aws_instance" "servidor_produccion" {
-  ami           = "ami-0c7217cdde317cfec" # Ubuntu Server 22.04 LTS en us-east-1
-  instance_type = "t2.micro"             # Capa gratuita admitida por el laboratorio
-  subnet_id     = aws_subnet.subred_publica.id
-  vpc_security_group_ids = [aws_security_group.sg_seguro.id]
+resource "aws_security_group" "sg_backends" {
+  name        = "sg_modulos_backends"
+  description = "Aislamiento: Solo acepta peticiones de la VPC interna"
+  vpc_id      = aws_vpc.vpc_principal.id
 
-  # Inyección automatizada de Docker para encender el docker-compose al iniciar
-  user_data = <<-EOF
-              #!/bin/bash
-              apt-get update
-              apt-get install -y docker.io docker-compose
-              systemctl start docker
-              systemctl enable docker
-              EOF
-
-  tags = {
-    Name = "Servidor-Produccion-EFT"
-    Env  = "Produccion"
+  ingress {
+    from_port   = 8081
+    to_port     = 8082
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
   }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# --- FASE 3: ORQUESTACIÓN DE PRODUCCIÓN DE ALTA DISPONIBILIDAD (AMAZON ECS) ---
+resource "aws_ecs_cluster" "cluster_produccion" {
+  name = "cluster-sistema-produccion"
+}
+
+# Definición elástica para la ejecución de tareas de contenedores Fargate
+resource "aws_ecs_task_definition" "tarea_ventas" {
+  family                   = "back-ventas-task"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "256"
+  memory                   = "512"
+
+  container_definitions = jsonencode([{
+    name      = "back-ventas"
+    image     = "nginx:alpine" # Placeholder que el pipeline actualizará dinámicamente con ECR
+    essential = true
+    portMappings = [{
+      containerPort = 8081
+      hostPort      = 8081
+    }]
+  }])
 }
