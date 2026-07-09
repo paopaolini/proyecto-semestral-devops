@@ -19,15 +19,27 @@ jobs:
         distribution: 'temurin'
         cache: 'maven'
 
-    - name: Compilar Componente Backend Ventas
+    - name: Compilar Componentes Backend (Busqueda Dinamica)
       run: |
-        cd back-Ventas_SpringBoot
-        mvn clean package -DskipTests
+        # Buscar el directorio real donde está el pom.xml de Ventas y compilar
+        POM_VENTAS=$(find . -name "pom.xml" | grep -i "ventas" | head -n 1)
+        if [ ! -z "$POM_VENTAS" ]; then
+          DIR_VENTAS=$(dirname "$POM_VENTAS")
+          echo "Compilando Ventas en: $DIR_VENTAS"
+          cd "$DIR_VENTAS" && mvn clean package -DskipTests && cd -
+        else
+          echo "No se encontro pom.xml para Ventas"
+        fi
 
-    - name: Compilar Componente Backend Despachos
-      run: |
-        cd back-Despachos_SpringBoot
-        mvn clean package -DskipTests
+        # Buscar el directorio real donde está el pom.xml de Despachos y compilar
+        POM_DESPACHOS=$(find . -name "pom.xml" | grep -i "despachos" | head -n 1)
+        if [ ! -z "$POM_DESPACHOS" ]; then
+          DIR_DESPACHOS=$(dirname "$POM_DESPACHOS")
+          echo "Compilando Despachos en: $DIR_DESPACHOS"
+          cd "$DIR_DESPACHOS" && mvn clean package -DskipTests && cd -
+        else
+          echo "No se encontro pom.xml para Despachos"
+        fi
 
     - name: Autenticacion Cifrada en AWS Academy (Minimo Privilegio)
       uses: aws-actions/configure-aws-credentials@v4
@@ -51,7 +63,7 @@ jobs:
         aws ecr describe-repositories --repository-names back-despachos || aws ecr create-repository --repository-name back-despachos
         aws ecr describe-repositories --repository-names front-despacho || aws ecr create-repository --repository-name front-despacho
         
-        # Construcción usando las rutas exactas de la raíz del monorrepo
+        # Construcción usando las rutas raíz del monorrepo
         docker build -t $ECR_REGISTRY/back-ventas:latest -t $ECR_REGISTRY/back-ventas:$IMAGE_TAG ./back-Ventas_SpringBoot
         docker push $ECR_REGISTRY/back-ventas --all-tags
         
