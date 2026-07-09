@@ -21,19 +21,11 @@ jobs:
 
     - name: Compilar Componente Backend Ventas
       run: |
-        if [ -d "back-Ventas_SpringBoot" ]; then
-          cd back-Ventas_SpringBoot && mvn clean package -DskipTests
-        else
-          echo "Saltando compilacion local"
-        fi
+        cd back-Ventas_SpringBoot && mvn clean package -DskipTests
 
     - name: Compilar Componente Backend Despachos
       run: |
-        if [ -d "back-Despachos_SpringBoot" ]; then
-          cd back-Despachos_SpringBoot && mvn clean package -DskipTests
-        else
-          echo "Saltando compilacion local"
-        fi
+        cd back-Despachos_SpringBoot && mvn clean package -DskipTests
 
     - name: Autenticacion Cifrada en AWS Academy (Minimo Privilegio)
       uses: aws-actions/configure-aws-credentials@v4
@@ -52,12 +44,12 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        # Intentar crear repositorios solo si no existen
+        # Validar o crear repositorios en AWS ECR
         aws ecr describe-repositories --repository-names back-ventas || aws ecr create-repository --repository-name back-ventas
         aws ecr describe-repositories --repository-names back-despachos || aws ecr create-repository --repository-name back-despachos
         aws ecr describe-repositories --repository-names front-despacho || aws ecr create-repository --repository-name front-despacho
         
-        # Compilar usando las carpetas como contextos reales
+        # Construcción y push con rutas exactas del monorrepo
         docker build -t $ECR_REGISTRY/back-ventas:latest -t $ECR_REGISTRY/back-ventas:$IMAGE_TAG ./back-Ventas_SpringBoot
         docker push $ECR_REGISTRY/back-ventas --all-tags
         
