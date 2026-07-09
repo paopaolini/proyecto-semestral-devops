@@ -49,7 +49,7 @@ jobs:
         aws ecr describe-repositories --repository-names back-despachos || aws ecr create-repository --repository-name back-despachos
         aws ecr describe-repositories --repository-names front-despacho || aws ecr create-repository --repository-name front-despacho
         
-        # Construcción y push con rutas exactas del monorrepo
+        # ConstrucciÃ³n y push con rutas exactas del monorrepo
         docker build -t $ECR_REGISTRY/back-ventas:latest -t $ECR_REGISTRY/back-ventas:$IMAGE_TAG ./back-Ventas_SpringBoot
         docker push $ECR_REGISTRY/back-ventas --all-tags
         
