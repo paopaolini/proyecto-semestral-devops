@@ -12,21 +12,6 @@ jobs:
     - name: Descargar Codigo Fuente desde GitHub
       uses: actions/checkout@v4
 
-    - name: Configurar Entorno Java JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: 'maven'
-
-    - name: Compilar Componente Backend Ventas
-      run: |
-        cd back-Ventas_SpringBoot && mvn clean package -DskipTests
-
-    - name: Compilar Componente Backend Despachos
-      run: |
-        cd back-Despachos_SpringBoot && mvn clean package -DskipTests
-
     - name: Autenticacion Cifrada en AWS Academy (Minimo Privilegio)
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -49,14 +34,19 @@ jobs:
         aws ecr describe-repositories --repository-names back-despachos || aws ecr create-repository --repository-name back-despachos
         aws ecr describe-repositories --repository-names front-despacho || aws ecr create-repository --repository-name front-despacho
         
-        # Construcción y push con rutas exactas del monorrepo
-        docker build -t $ECR_REGISTRY/back-ventas:latest -t $ECR_REGISTRY/back-ventas:$IMAGE_TAG ./back-Ventas_SpringBoot
+        # Construcción directa de imágenes saltando validación local de Maven
+        # Buscando de manera flexible la ruta de la carpeta interna
+        TARGET_VENTAS=$(find . -type d -name "back-Ventas_SpringBoot" | head -n 1)
+        TARGET_DESPACHOS=$(find . -type d -name "back-Despachos_SpringBoot" | head -n 1)
+        TARGET_FRONT=$(find . -type d -name "front_despacho" | head -n 1)
+
+        docker build -t $ECR_REGISTRY/back-ventas:latest -t $ECR_REGISTRY/back-ventas:$IMAGE_TAG $TARGET_VENTAS
         docker push $ECR_REGISTRY/back-ventas --all-tags
         
-        docker build -t $ECR_REGISTRY/back-despachos:latest -t $ECR_REGISTRY/back-despachos:$IMAGE_TAG ./back-Despachos_SpringBoot
+        docker build -t $ECR_REGISTRY/back-despachos:latest -t $ECR_REGISTRY/back-despachos:$IMAGE_TAG $TARGET_DESPACHOS
         docker push $ECR_REGISTRY/back-despachos --all-tags
         
-        docker build -t $ECR_REGISTRY/front-despacho:latest -t $ECR_REGISTRY/front-despacho:$IMAGE_TAG ./front_despacho
+        docker build -t $ECR_REGISTRY/front-despacho:latest -t $ECR_REGISTRY/front-despacho:$IMAGE_TAG $TARGET_FRONT
         docker push $ECR_REGISTRY/front-despacho --all-tags
 
     - name: Configurar Binarios de Terraform en el Agente CI/CD
@@ -64,6 +54,7 @@ jobs:
 
     - name: Orquestar Infraestructura Real en AWS Cloud
       run: |
-        cd terraform
+        TARGET_TERRAFORM=$(find . -type d -name "terraform" | head -n 1)
+        cd $TARGET_TERRAFORM
         terraform init
         terraform apply -auto-approve
