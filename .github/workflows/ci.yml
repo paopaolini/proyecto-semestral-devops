@@ -30,7 +30,6 @@ jobs:
           mvn clean package -DskipTests
           mkdir -p target_meta && cp target/*.jar target_meta/app.jar || echo "Respaldo directo"
           cd -
-          # Guardar la ruta real para el paso de Docker
           echo "R_VENTAS=$DIR_VENTAS" >> $GITHUB_ENV
         else
           echo "R_VENTAS=./back-Ventas_SpringBoot" >> $GITHUB_ENV
@@ -45,7 +44,6 @@ jobs:
           mvn clean package -DskipTests
           mkdir -p target_meta && cp target/*.jar target_meta/app.jar || echo "Respaldo directo"
           cd -
-          # Guardar la ruta real para el paso de Docker
           echo "R_DESPACHOS=$DIR_DESPACHOS" >> $GITHUB_ENV
         else
           echo "R_DESPACHOS=./back-Despachos_SpringBoot" >> $GITHUB_ENV
@@ -73,9 +71,9 @@ jobs:
         aws ecr describe-repositories --repository-names back-despachos || aws ecr create-repository --repository-name back-despachos
         aws ecr describe-repositories --repository-names front-despacho || aws ecr create-repository --repository-name front-despacho
         
-        # Generar Dockerfiles limpios directamente en los directorios donde están los archivos compilados
+        # Generar Dockerfiles limpios usando eclipse-temurin (imagen moderna oficial)
         cat <<EOF > ${{ env.R_VENTAS }}/Dockerfile.clean
-        FROM openjdk:17-jdk-slim
+        FROM eclipse-temurin:17-jdk-jammy
         WORKDIR /app
         COPY target_meta/app.jar app.jar
         EXPOSE 8080
@@ -83,7 +81,7 @@ jobs:
         EOF
 
         cat <<EOF > ${{ env.R_DESPACHOS }}/Dockerfile.clean
-        FROM openjdk:17-jdk-slim
+        FROM eclipse-temurin:17-jdk-jammy
         WORKDIR /app
         COPY target_meta/app.jar app.jar
         EXPOSE 8081
