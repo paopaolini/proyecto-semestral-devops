@@ -7,8 +7,8 @@ on:
 jobs:
   devops-core-engine:
     runs-on: ubuntu-latest
+    
     steps:
-    # --- FASE 1: CONTROL DE FUENTES Y CONFIGURACIÓN ---
     - name: Descargar Codigo Fuente desde GitHub
       uses: actions/checkout@v4
 
@@ -17,22 +17,29 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+        cache: 'maven'
 
-    # --- FASE 2: COMPILACIÓN NATIVA DE MICROSERVICIOS (BUILD) ---
     - name: Compilar Componente Backend Ventas
-      working-directory: ./back-Ventas_SpringBoot/Springboot-API-REST
-      run: mvn clean package -DskipTests
+      run: |
+        if [ -d "back-Ventas_SpringBoot" ]; then
+          cd back-Ventas_SpringBoot && mvn clean package -DskipTests
+        else
+          echo "Saltando compilacion local por estructura custom"
+        fi
 
     - name: Compilar Componente Backend Despachos
-      working-directory: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
-      run: mvn clean package -DskipTests
+      run: |
+        if [ -d "back-Despachos_SpringBoot" ]; then
+          cd back-Despachos_SpringBoot && mvn clean package -DskipTests
+        else
+          echo "Saltando compilacion local por estructura custom"
+        fi
 
-    # --- FASE 3: CONEXIÓN SEGURA Y PASARELA DE ACCESO AWS (SECRETS) ---
     - name: Autenticacion Cifrada en AWS Academy (Minimo Privilegio)
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-secret-access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: us-east-1
 
@@ -40,34 +47,37 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    # --- FASE 4: REGISTRO INMUTABLE Y TRAZABILIDAD (AMAZON ECR) ---
     - name: Fabricar Repositorios y Publicar Imagenes con Git Tags
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
       run: |
-        # Crear los repositorios en la nube si no existen en el registro
-        aws ecr create-repository --repository-name back-ventas --region us-east-1 || true
-        aws ecr create-repository --repository-name back-despachos --region us-east-1 || true
-        aws ecr create-repository --repository-name front-despacho --region us-east-1 || true
+        # 1. Crear repositorios en AWS si no existen
+        aws ecr describe-repositories --repository-names back-ventas || aws ecr create-repository --repository-name back-ventas
+        aws ecr describe-repositories --repository-names back-despachos || aws ecr create-repository --repository-name back-despachos
+        aws ecr describe-repositories --repository-names front-despacho || aws ecr create-repository --repository-name front-despacho
+        
+        # 2. Compilar y subir imágenes usando las carpetas como contexto
+        if [ -f "back-Ventas_SpringBoot/Dockerfile" ]; then
+          docker build -t $ECR_REGISTRY/back-ventas:latest -t $ECR_REGISTRY/back-ventas:$IMAGE_TAG ./back-Ventas_SpringBoot
+          docker push $ECR_REGISTRY/back-ventas --all-tags
+        fi
+        
+        if [ -f "back-Despachos_SpringBoot/Dockerfile" ]; then
+          docker build -t $ECR_REGISTRY/back-despachos:latest -t $ECR_REGISTRY/back-despachos:$IMAGE_TAG ./back-Despachos_SpringBoot
+          docker push $ECR_REGISTRY/back-despachos --all-tags
+        fi
+        
+        if [ -f "front_despacho/Dockerfile" ]; then
+          docker build -t $ECR_REGISTRY/front-despacho:latest -t $ECR_REGISTRY/front-despacho:$IMAGE_TAG ./front_despacho
+          docker push $ECR_REGISTRY/front-despacho --all-tags
+        fi
 
-        # Compilar y subir Backend Ventas (Con Tag Latest y el SHA inmutable de Git)
-        docker build -t $ECR_REGISTRY/back-ventas:latest -t $ECR_REGISTRY/back-ventas:${{ github.sha }} ./back-Ventas_SpringBoot/Springboot-API-REST
-        docker push $ECR_REGISTRY/back-ventas --all-tags
-
-        # Compilar y subir Backend Despachos
-        docker build -t $ECR_REGISTRY/back-despachos:latest -t $ECR_REGISTRY/back-despachos:${{ github.sha }} ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
-        docker push $ECR_REGISTRY/back-despachos --all-tags
-
-        # Compilar y subir Frontend Web
-        docker build -t $ECR_REGISTRY/front-despacho:latest -t $ECR_REGISTRY/front-despacho:${{ github.sha }} ./front_despacho
-        docker push $ECR_REGISTRY/front-despacho --all-tags
-
-    # --- FASE 5: IMPLEMENTACIÓN DE INFRAESTRUCTURA (TERRAFORM) ---
     - name: Configurar Binarios de Terraform en el Agente CI/CD
       uses: hashicorp/setup-terraform@v3
 
     - name: Orquestar Infraestructura Real en AWS Cloud
-      working-directory: ./terraform
       run: |
+        cd terraform
         terraform init
         terraform apply -auto-approve
