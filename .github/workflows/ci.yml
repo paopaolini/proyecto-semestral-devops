@@ -24,7 +24,7 @@ jobs:
         if [ -d "back-Ventas_SpringBoot" ]; then
           cd back-Ventas_SpringBoot && mvn clean package -DskipTests
         else
-          echo "Saltando compilacion local por estructura custom"
+          echo "Saltando compilacion local"
         fi
 
     - name: Compilar Componente Backend Despachos
@@ -32,14 +32,14 @@ jobs:
         if [ -d "back-Despachos_SpringBoot" ]; then
           cd back-Despachos_SpringBoot && mvn clean package -DskipTests
         else
-          echo "Saltando compilacion local por estructura custom"
+          echo "Saltando compilacion local"
         fi
 
     - name: Autenticacion Cifrada en AWS Academy (Minimo Privilegio)
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: us-east-1
 
@@ -52,26 +52,20 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        # 1. Crear repositorios en AWS si no existen
+        # Intentar crear repositorios solo si no existen
         aws ecr describe-repositories --repository-names back-ventas || aws ecr create-repository --repository-name back-ventas
         aws ecr describe-repositories --repository-names back-despachos || aws ecr create-repository --repository-name back-despachos
         aws ecr describe-repositories --repository-names front-despacho || aws ecr create-repository --repository-name front-despacho
         
-        # 2. Compilar y subir imágenes usando las carpetas como contexto
-        if [ -f "back-Ventas_SpringBoot/Dockerfile" ]; then
-          docker build -t $ECR_REGISTRY/back-ventas:latest -t $ECR_REGISTRY/back-ventas:$IMAGE_TAG ./back-Ventas_SpringBoot
-          docker push $ECR_REGISTRY/back-ventas --all-tags
-        fi
+        # Compilar usando las carpetas como contextos reales
+        docker build -t $ECR_REGISTRY/back-ventas:latest -t $ECR_REGISTRY/back-ventas:$IMAGE_TAG ./back-Ventas_SpringBoot
+        docker push $ECR_REGISTRY/back-ventas --all-tags
         
-        if [ -f "back-Despachos_SpringBoot/Dockerfile" ]; then
-          docker build -t $ECR_REGISTRY/back-despachos:latest -t $ECR_REGISTRY/back-despachos:$IMAGE_TAG ./back-Despachos_SpringBoot
-          docker push $ECR_REGISTRY/back-despachos --all-tags
-        fi
+        docker build -t $ECR_REGISTRY/back-despachos:latest -t $ECR_REGISTRY/back-despachos:$IMAGE_TAG ./back-Despachos_SpringBoot
+        docker push $ECR_REGISTRY/back-despachos --all-tags
         
-        if [ -f "front_despacho/Dockerfile" ]; then
-          docker build -t $ECR_REGISTRY/front-despacho:latest -t $ECR_REGISTRY/front-despacho:$IMAGE_TAG ./front_despacho
-          docker push $ECR_REGISTRY/front-despacho --all-tags
-        fi
+        docker build -t $ECR_REGISTRY/front-despacho:latest -t $ECR_REGISTRY/front-despacho:$IMAGE_TAG ./front_despacho
+        docker push $ECR_REGISTRY/front-despacho --all-tags
 
     - name: Configurar Binarios de Terraform en el Agente CI/CD
       uses: hashicorp/setup-terraform@v3
